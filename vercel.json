@@ -1,0 +1,12 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": "nextjs",
+  "functions": {
+    "src/app/api/tasks/[id]/round-table/route.ts": {
+      "maxDuration": 300
+    },
+    "src/app/api/tasks/[id]/execute/route.ts": {
+      "maxDuration": 300
+    }
+  }
+}

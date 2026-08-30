@@ -1,36 +1,90 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# השולחן העגול — Round Table POC
 
-## Getting Started
+POC מינימלי לפלטפורמת **Multi-Brain** לפיתוח תוכנה:
 
-First, run the development server:
+- 4 מוחות: Architect / Coder / Red Team / Researcher
+- **Round Table** עם סינתזה (הסכמות, מחלוקות, תוכנית)
+- **Control Plane** דטרמיניסטי: תקציב tokens/עלות, סבבים, ניסיונות, עצירה
+- **Evidence over Consensus**: schema, security סטטי, red-team review, lint/test אופציונלי
+- **Model switch** אחרי כשל
+- Audit trail + UI ב-Next.js
+
+> זה POC לבדיקת ההיפותזה — לא המערכת המלאה מהמסמך.
+
+## Production (Vercel)
+
+- URL: https://roundtable-poc.vercel.app
+- Project: `mas-projects-c7518415/roundtable-poc`
+
+הוסף API keys ב-Vercel (Production + Preview):
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+cd poc
+vercel env add OPENAI_API_KEY production
+vercel env add ANTHROPIC_API_KEY production
+vercel env add GOOGLE_GENERATIVE_AI_API_KEY production
+vercel env add XAI_API_KEY production
+vercel --prod
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+או דרך הדשבורד:  
+https://vercel.com/mas-projects-c7518415/roundtable-poc/settings/environment-variables
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+> ב-Vercel האחסון של משימות הוא ephemeral (`/tmp`) — מתאים ל-POC, לא לשימוש ארוך טווח.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## התקנה מקומית
 
-## Learn More
+```bash
+cd poc
+cp .env.example .env
+# מלא לפחות API key אחד:
+# OPENAI_API_KEY / ANTHROPIC_API_KEY / GOOGLE_GENERATIVE_AI_API_KEY / XAI_API_KEY
 
-To learn more about Next.js, take a look at the following resources:
+npm install
+npm run dev
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+פתח: [http://localhost:3000](http://localhost:3000)
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## זרימת עבודה
 
-## Deploy on Vercel
+1. צור משימה (כותרת + מטרה; Workspace אופציונלי לנתיב פרויקט מקומי)
+2. **הפעל Round Table** — 4 מוחות במקביל + Chair לסינתזה
+3. **בצע (Propose → Verify)** — Coder מציע קבצים, Red Team בודק, Evidence נאסף
+4. אם נכשל: **החלף מוח** ונסה שוב, או הרץ Round Table נוסף
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+הקבצים **לא נכתבים אוטומטית לדיסק** ב-POC הזה (Propose → Verify). אפשר להעתיק מההצעה ידנית.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## מיפוי מוחות (ברירת מחדל)
+
+| תפקיד | Provider מועדף | Fallback |
+|--------|----------------|----------|
+| Architect | OpenAI | Anthropic → Google → xAI |
+| Coder | Anthropic | OpenAI → Google → xAI |
+| Red Team | xAI | Anthropic → OpenAI → Google |
+| Researcher | Google | OpenAI → Anthropic → xAI |
+
+אם חסר key — המערכת נופלת אוטומטית לספק זמין.
+
+Override לדוגמה ב-`.env`:
+
+```env
+ROUNDTABLE_CODER_MODEL=anthropic:claude-sonnet-4-5
+```
+
+## מה בכוונה לא נבנה ב-POC
+
+- 20 מחלקות / ארגון מלא
+- Mutation testing
+- Dependency graph מושלם
+- UI ענק / SaaS multi-tenant
+- כתיבה אוטומטית ל-git worktrees (אפשר בשלב הבא)
+
+## מבנה
+
+```
+src/lib/          # brains, providers, control-plane, evidence, round-table, executor
+src/app/api/      # REST endpoints
+src/components/   # UI
+.data/tasks/      # אחסון JSON מקומי למשימות
+```
