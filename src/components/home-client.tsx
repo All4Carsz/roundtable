@@ -1,9 +1,14 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { Loader2, Plus, Sparkles, KeyRound } from "lucide-react";
 import type { ProviderStatus, TaskRecord } from "@/lib/types";
+import {
+  apiFetch,
+  clientKeysConfiguredCount,
+  loadClientApiKeys,
+} from "@/lib/client-keys";
 import { TaskStatusBadge } from "./status-badge";
 
 type ProvidersResponse = {
@@ -15,33 +20,47 @@ type ProvidersResponse = {
 export function HomeClient() {
   const [tasks, setTasks] = useState<TaskRecord[]>([]);
   const [providers, setProviders] = useState<ProvidersResponse | null>(null);
+  const [localKeys, setLocalKeys] = useState<Record<string, string>>({});
   const [title, setTitle] = useState("");
   const [goal, setGoal] = useState("");
   const [workspacePath, setWorkspacePath] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  async function refresh() {
+  const refresh = useCallback(async () => {
+    setLocalKeys(loadClientApiKeys());
     const [t, p] = await Promise.all([
-      fetch("/api/tasks").then((r) => r.json()),
-      fetch("/api/providers").then((r) => r.json()),
+      apiFetch("/api/tasks").then((r) => r.json()),
+      apiFetch("/api/providers").then((r) => r.json()),
     ]);
     setTasks(t.tasks || []);
     setProviders(p);
-  }
+  }, []);
 
   useEffect(() => {
     refresh().catch((e) => setError(String(e)));
-  }, []);
+    const onKeys = () => {
+      setLocalKeys(loadClientApiKeys());
+      refresh().catch(() => undefined);
+    };
+    window.addEventListener("roundtable-keys-changed", onKeys);
+    window.addEventListener("storage", onKeys);
+    return () => {
+      window.removeEventListener("roundtable-keys-changed", onKeys);
+      window.removeEventListener("storage", onKeys);
+    };
+  }, [refresh]);
+
+  const ready =
+    Boolean(providers?.ready) || clientKeysConfiguredCount(localKeys) > 0;
 
   async function onCreate(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch("/api/tasks", {
+      const res = await apiFetch("/api/tasks", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           title,
           goal,
@@ -79,30 +98,41 @@ export function HomeClient() {
               Evidence over Consensus, והחלפת מוח אחרי כשל — בלי מחלקות מיותרות.
             </p>
           </div>
+          <Link href="/settings" className="btn btn-secondary shrink-0">
+            <KeyRound className="h-4 w-4" />
+            ניהול API Keys
+          </Link>
         </div>
 
         <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          {(providers?.providers || []).map((p) => (
-            <div key={p.id} className="rounded-xl border border-zinc-800 bg-zinc-950/60 p-3">
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-medium">{p.label}</span>
-                <span className={`badge ${p.configured ? "badge-pass" : "badge-fail"}`}>
-                  {p.configured ? "מוכן" : "חסר key"}
-                </span>
+          {(providers?.providers || []).map((p) => {
+            const local = Boolean(localKeys[p.id]);
+            const ok = p.configured || local;
+            return (
+              <div key={p.id} className="rounded-xl border border-zinc-800 bg-zinc-950/60 p-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium">{p.label}</span>
+                  <span className={`badge ${ok ? "badge-pass" : "badge-fail"}`}>
+                    {ok ? "מוכן" : "חסר key"}
+                  </span>
+                </div>
+                <div className="mt-2 font-mono text-[11px] text-zinc-500">{p.defaultModel}</div>
               </div>
-              <div className="mt-2 font-mono text-[11px] text-zinc-500">{p.defaultModel}</div>
-            </div>
-          ))}
+            );
+          })}
         </div>
 
-        {!providers?.ready && (
-          <div className="mt-4 flex items-start gap-3 rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-100">
-            <KeyRound className="mt-0.5 h-4 w-4 shrink-0" />
-            <div>
-              אין API keys. העתק <code className="font-mono">.env.example</code> ל-
-              <code className="font-mono">.env</code> ומלא לפחות מפתח אחד, ואז הפעל מחדש את
-              השרת.
+        {!ready && (
+          <div className="mt-4 flex flex-col gap-3 rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-100 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-start gap-3">
+              <KeyRound className="mt-0.5 h-4 w-4 shrink-0" />
+              <div>
+                אין API keys. הוסף מפתחות במסך ההגדרות כדי שהמוחות יוכלו לעבוד.
+              </div>
             </div>
+            <Link href="/settings" className="btn btn-primary shrink-0">
+              הוסף API Keys
+            </Link>
           </div>
         )}
       </section>
@@ -144,10 +174,15 @@ export function HomeClient() {
               {error}
             </div>
           )}
-          <button className="btn btn-primary w-full" disabled={loading || !providers?.ready}>
+          <button className="btn btn-primary w-full" disabled={loading}>
             {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
             צור והתחל
           </button>
+          {!ready && (
+            <p className="text-xs text-amber-200/90">
+              אפשר ליצור משימה, אבל להפעלת Round Table צריך לפחות API key אחד.
+            </p>
+          )}
         </form>
 
         <div className="card p-6 lg:col-span-3">

@@ -3,6 +3,7 @@ import { createAnthropic } from "@ai-sdk/anthropic";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { createXai } from "@ai-sdk/xai";
 import type { LanguageModel } from "ai";
+import { resolveApiKey } from "./api-keys";
 import type { BrainRole, ProviderId, ProviderStatus } from "./types";
 
 const DEFAULT_MODELS: Record<ProviderId, string> = {
@@ -31,25 +32,25 @@ export function getProviderStatuses(): ProviderStatus[] {
     {
       id: "openai",
       label: "OpenAI",
-      configured: Boolean(process.env.OPENAI_API_KEY?.trim()),
+      configured: Boolean(resolveApiKey("openai")),
       defaultModel: DEFAULT_MODELS.openai,
     },
     {
       id: "anthropic",
       label: "Anthropic",
-      configured: Boolean(process.env.ANTHROPIC_API_KEY?.trim()),
+      configured: Boolean(resolveApiKey("anthropic")),
       defaultModel: DEFAULT_MODELS.anthropic,
     },
     {
       id: "google",
       label: "Google",
-      configured: Boolean(process.env.GOOGLE_GENERATIVE_AI_API_KEY?.trim()),
+      configured: Boolean(resolveApiKey("google")),
       defaultModel: DEFAULT_MODELS.google,
     },
     {
       id: "xai",
       label: "xAI",
-      configured: Boolean(process.env.XAI_API_KEY?.trim()),
+      configured: Boolean(resolveApiKey("xai")),
       defaultModel: DEFAULT_MODELS.xai,
     },
   ];
@@ -96,23 +97,26 @@ export function resolveBrainModel(
 }
 
 export function getLanguageModel(provider: ProviderId, model: string): LanguageModel {
+  const apiKey = resolveApiKey(provider);
+  if (!apiKey) {
+    throw new Error(`חסר API key עבור ${provider}`);
+  }
+
   switch (provider) {
     case "openai": {
-      const openai = createOpenAI({ apiKey: process.env.OPENAI_API_KEY });
+      const openai = createOpenAI({ apiKey });
       return openai(model);
     }
     case "anthropic": {
-      const anthropic = createAnthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+      const anthropic = createAnthropic({ apiKey });
       return anthropic(model);
     }
     case "google": {
-      const google = createGoogleGenerativeAI({
-        apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY,
-      });
+      const google = createGoogleGenerativeAI({ apiKey });
       return google(model);
     }
     case "xai": {
-      const xai = createXai({ apiKey: process.env.XAI_API_KEY });
+      const xai = createXai({ apiKey });
       return xai(model);
     }
     default: {

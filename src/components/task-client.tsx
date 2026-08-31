@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import type { TaskRecord } from "@/lib/types";
 import { BRAINS } from "@/lib/brains";
+import { apiFetch, loadClientApiKeys } from "@/lib/client-keys";
 import { EvidenceBadge, TaskStatusBadge } from "./status-badge";
 import { formatTokens, formatUsd } from "@/lib/utils";
 
@@ -40,7 +41,7 @@ export function TaskClient({ id }: { id: string }) {
   const [busy, setBusy] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    const res = await fetch(`/api/tasks/${id}`);
+    const res = await apiFetch(`/api/tasks/${id}`);
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || "טעינה נכשלה");
     setTask(data.task);
@@ -55,10 +56,9 @@ export function TaskClient({ id }: { id: string }) {
     setBusy(action);
     setError(null);
     try {
-      const res = await fetch(`/api/tasks/${id}/${action}`, {
+      const res = await apiFetch(`/api/tasks/${id}/${action}`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body || {}),
+        body: JSON.stringify({ ...(body || {}), ...loadClientApiKeys() }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "הפעולה נכשלה");

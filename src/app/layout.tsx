@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import Link from "next/link";
-import { CircleDot } from "lucide-react";
+import { CircleDot, KeyRound } from "lucide-react";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -39,8 +39,14 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
                 <span className="mr-2 text-xs font-medium text-zinc-500">POC</span>
               </span>
             </Link>
-            <div className="text-xs text-zinc-500">
-              LLM Proposes · System Decides · Evidence over Consensus
+            <div className="flex items-center gap-3">
+              <div className="hidden text-xs text-zinc-500 sm:block">
+                LLM Proposes · System Decides · Evidence over Consensus
+              </div>
+              <Link href="/settings" className="btn btn-secondary !py-2 !text-xs">
+                <KeyRound className="h-3.5 w-3.5" />
+                API Keys
+              </Link>
             </div>
           </div>
         </header>
