@@ -221,16 +221,29 @@ export function TaskClient({ id }: { id: string }) {
 
             <div className="grid gap-3 md:grid-cols-2">
               {latestRound.opinions.map((op) => {
-                const brain = BRAINS[op.role];
+                const isCustom = op.role === "custom";
+                const brain =
+                  op.role === "custom" ? null : BRAINS[op.role];
+                const title = isCustom
+                  ? op.guestName || "AI מותאם"
+                  : brain?.hebrewLabel || op.role;
+                const color = isCustom ? "#D946EF" : brain?.color || "#A1A1AA";
                 return (
                   <div
-                    key={op.role + op.at}
+                    key={`${op.role}-${op.provider}-${op.at}`}
                     className="rounded-xl border border-zinc-800 p-4"
-                    style={{ borderTopColor: brain.color, borderTopWidth: 2 }}
+                    style={{ borderTopColor: color, borderTopWidth: 2 }}
                   >
                     <div className="flex items-center justify-between gap-2">
                       <div>
-                        <div className="font-medium">{brain.hebrewLabel}</div>
+                        <div className="font-medium">
+                          {title}
+                          {isCustom && (
+                            <span className="mr-2 text-[11px] font-normal text-fuchsia-300">
+                              אורח
+                            </span>
+                          )}
+                        </div>
                         <div className="font-mono text-[11px] text-zinc-500">
                           {op.provider}/{op.model}
                         </div>

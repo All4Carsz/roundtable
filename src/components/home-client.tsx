@@ -6,8 +6,10 @@ import { Loader2, Plus, Sparkles, KeyRound } from "lucide-react";
 import type { ProviderStatus, TaskRecord } from "@/lib/types";
 import {
   apiFetch,
+  clientAuthConfiguredCount,
   clientKeysConfiguredCount,
   loadClientApiKeys,
+  loadCustomProviders,
 } from "@/lib/client-keys";
 import { TaskStatusBadge } from "./status-badge";
 
@@ -21,6 +23,7 @@ export function HomeClient() {
   const [tasks, setTasks] = useState<TaskRecord[]>([]);
   const [providers, setProviders] = useState<ProvidersResponse | null>(null);
   const [localKeys, setLocalKeys] = useState<Record<string, string>>({});
+  const [customCount, setCustomCount] = useState(0);
   const [title, setTitle] = useState("");
   const [goal, setGoal] = useState("");
   const [workspacePath, setWorkspacePath] = useState("");
@@ -29,6 +32,7 @@ export function HomeClient() {
 
   const refresh = useCallback(async () => {
     setLocalKeys(loadClientApiKeys());
+    setCustomCount(loadCustomProviders().filter((p) => p.enabled !== false).length);
     const [t, p] = await Promise.all([
       apiFetch("/api/tasks").then((r) => r.json()),
       apiFetch("/api/providers").then((r) => r.json()),
@@ -41,6 +45,7 @@ export function HomeClient() {
     refresh().catch((e) => setError(String(e)));
     const onKeys = () => {
       setLocalKeys(loadClientApiKeys());
+      setCustomCount(loadCustomProviders().filter((p) => p.enabled !== false).length);
       refresh().catch(() => undefined);
     };
     window.addEventListener("roundtable-keys-changed", onKeys);
@@ -52,7 +57,10 @@ export function HomeClient() {
   }, [refresh]);
 
   const ready =
-    Boolean(providers?.ready) || clientKeysConfiguredCount(localKeys) > 0;
+    Boolean(providers?.ready) ||
+    clientKeysConfiguredCount(localKeys) > 0 ||
+    customCount > 0 ||
+    clientAuthConfiguredCount() > 0;
 
   async function onCreate(e: React.FormEvent) {
     e.preventDefault();
@@ -105,33 +113,68 @@ export function HomeClient() {
         </div>
 
         <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          {(providers?.providers || []).map((p) => {
-            const local = Boolean(localKeys[p.id]);
-            const ok = p.configured || local;
-            return (
-              <div key={p.id} className="rounded-xl border border-zinc-800 bg-zinc-950/60 p-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium">{p.label}</span>
-                  <span className={`badge ${ok ? "badge-pass" : "badge-fail"}`}>
-                    {ok ? "מוכן" : "חסר key"}
-                  </span>
+          {(providers?.providers || [])
+            .filter((p) => p.kind !== "custom")
+            .map((p) => {
+              const local = Boolean(localKeys[p.id]);
+              const ok = p.configured || local;
+              return (
+                <div key={p.id} className="rounded-xl border border-zinc-800 bg-zinc-950/60 p-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium">{p.label}</span>
+                    <span className={`badge ${ok ? "badge-pass" : "badge-fail"}`}>
+                      {ok ? "מוכן" : "חסר key"}
+                    </span>
+                  </div>
+                  <div className="mt-2 font-mono text-[11px] text-zinc-500">{p.defaultModel}</div>
                 </div>
-                <div className="mt-2 font-mono text-[11px] text-zinc-500">{p.defaultModel}</div>
-              </div>
-            );
-          })}
+              );
+            })}
         </div>
+
+        {(customCount > 0 ||
+          (providers?.providers || []).some((p) => p.kind === "custom")) && (
+          <div className="mt-4 rounded-xl border border-fuchsia-500/20 bg-fuchsia-500/5 p-4">
+            <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-fuchsia-300">
+              AI מותאם אישית
+            </div>
+            <div className="grid gap-2 sm:grid-cols-2">
+              {(providers?.providers || [])
+                .filter((p) => p.kind === "custom")
+                .map((p) => (
+                  <div
+                    key={p.id}
+                    className="rounded-lg border border-zinc-800 bg-zinc-950/60 px-3 py-2"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-sm font-medium">{p.label}</span>
+                      <span className="badge badge-pass">מותאם</span>
+                    </div>
+                    <div className="mt-1 font-mono text-[11px] text-zinc-500" dir="ltr">
+                      {p.defaultModel}
+                    </div>
+                  </div>
+                ))}
+              {customCount > 0 &&
+                !(providers?.providers || []).some((p) => p.kind === "custom") && (
+                  <div className="text-sm text-zinc-400">
+                    {customCount} AI מותאמים שמורים בדפדפן
+                  </div>
+                )}
+            </div>
+          </div>
+        )}
 
         {!ready && (
           <div className="mt-4 flex flex-col gap-3 rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-100 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-start gap-3">
               <KeyRound className="mt-0.5 h-4 w-4 shrink-0" />
               <div>
-                אין API keys. הוסף מפתחות במסך ההגדרות כדי שהמוחות יוכלו לעבוד.
+                אין מוחות מחוברים. הוסף API key מובנה או AI מותאם אישית בהגדרות.
               </div>
             </div>
             <Link href="/settings" className="btn btn-primary shrink-0">
-              הוסף API Keys
+              חיבור מוחות
             </Link>
           </div>
         )}

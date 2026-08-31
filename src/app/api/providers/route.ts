@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { BRAIN_LIST } from "@/lib/brains";
+import { getRequestCustomProviders } from "@/lib/api-keys";
 import {
   configuredProviders,
   getProviderStatuses,
@@ -22,12 +23,12 @@ export async function GET(req: Request) {
     return NextResponse.json({
       providers,
       assignments,
+      customProviders: getRequestCustomProviders(),
       ready: configuredProviders().length > 0,
     });
   });
 }
 
-/** Optional POST: send keys in JSON body to check readiness without custom headers. */
 export async function POST(req: Request) {
   const body = await req.json().catch(() => ({}));
   return withRequestApiKeys(
@@ -38,6 +39,7 @@ export async function POST(req: Request) {
         providers,
         ready: configuredProviders().length > 0,
         configuredCount: configuredProviders().length,
+        customCount: getRequestCustomProviders().length,
       });
     },
     body,

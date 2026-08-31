@@ -1,6 +1,24 @@
 export type BrainRole = "architect" | "coder" | "redteam" | "researcher";
 
-export type ProviderId = "openai" | "anthropic" | "google" | "xai";
+export type BuiltinProviderId = "openai" | "anthropic" | "google" | "xai";
+
+/** Built-in provider or custom id like `custom_abc123`. */
+export type ProviderId = BuiltinProviderId | (string & {});
+
+export interface CustomAiProvider {
+  id: string;
+  name: string;
+  baseUrl: string;
+  apiKey: string;
+  model: string;
+  /** Prefer this AI when resolving a built-in Round Table role. */
+  assignToRole?: BrainRole | null;
+  /** Speak as an extra participant at the Round Table. */
+  joinRoundTable: boolean;
+  /** Optional prompt when joining as an extra brain. */
+  systemPrompt?: string;
+  enabled: boolean;
+}
 
 export type TaskStatus =
   | "draft"
@@ -28,6 +46,10 @@ export interface ProviderStatus {
   label: string;
   configured: boolean;
   defaultModel: string;
+  kind: "builtin" | "custom";
+  baseUrl?: string;
+  assignToRole?: BrainRole | null;
+  joinRoundTable?: boolean;
 }
 
 export interface BrainConfig {
@@ -35,8 +57,8 @@ export interface BrainConfig {
   label: string;
   hebrewLabel: string;
   description: string;
-  preferredProvider: ProviderId;
-  fallbackOrder: ProviderId[];
+  preferredProvider: BuiltinProviderId;
+  fallbackOrder: BuiltinProviderId[];
   systemPrompt: string;
   color: string;
 }
@@ -57,7 +79,9 @@ export interface AuditEvent {
 }
 
 export interface BrainOpinion {
-  role: BrainRole;
+  role: BrainRole | "custom";
+  /** Display name for custom Round Table guests. */
+  guestName?: string;
   provider: ProviderId;
   model: string;
   summary: string;

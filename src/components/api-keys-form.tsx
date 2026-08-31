@@ -2,19 +2,20 @@
 
 import { useEffect, useState } from "react";
 import { Check, Eye, EyeOff, KeyRound, Loader2, Trash2 } from "lucide-react";
-import type { ProviderId } from "@/lib/types";
+import type { BuiltinProviderId } from "@/lib/types";
 import type { ApiKeys } from "@/lib/keys-shared";
 import {
   PROVIDER_META,
   clearClientApiKeys,
   clientKeysConfiguredCount,
   loadClientApiKeys,
+  loadCustomProviders,
   saveClientApiKeys,
 } from "@/lib/client-keys";
 
 export function ApiKeysForm({ onSaved }: { onSaved?: (keys: ApiKeys) => void }) {
   const [keys, setKeys] = useState<ApiKeys>({});
-  const [show, setShow] = useState<Partial<Record<ProviderId, boolean>>>({});
+  const [show, setShow] = useState<Partial<Record<BuiltinProviderId, boolean>>>({});
   const [saved, setSaved] = useState(false);
   const [testing, setTesting] = useState(false);
   const [testMsg, setTestMsg] = useState<string | null>(null);
@@ -23,7 +24,7 @@ export function ApiKeysForm({ onSaved }: { onSaved?: (keys: ApiKeys) => void }) 
     setKeys(loadClientApiKeys());
   }, []);
 
-  function update(id: ProviderId, value: string) {
+  function update(id: BuiltinProviderId, value: string) {
     setKeys((prev) => ({ ...prev, [id]: value }));
     setSaved(false);
     setTestMsg(null);
@@ -49,18 +50,20 @@ export function ApiKeysForm({ onSaved }: { onSaved?: (keys: ApiKeys) => void }) 
     try {
       saveClientApiKeys(keys);
       const current = loadClientApiKeys();
+      const customs = loadCustomProviders();
       const res = await fetch("/api/providers", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(current),
+        body: JSON.stringify({ ...current, customProviders: customs }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "בדיקה נכשלה");
       const count = data.configuredCount ?? 0;
+      const customCount = data.customCount ?? 0;
       setTestMsg(
         count > 0
-          ? `מוכן: ${count} ספקים מזוהים. אפשר להפעיל Round Table.`
-          : "לא זוהה אף מפתח תקין. מלא לפחות מפתח אחד ושמור.",
+          ? `מוכן: ${count} ספקים (${customCount} מותאמים). אפשר להפעיל Round Table.`
+          : "לא זוהה אף מפתח/AI. מלא מפתח מובנה או הוסף AI מותאם.",
       );
       onSaved?.(current);
     } catch (err) {

@@ -14,6 +14,7 @@ import {
   appendEvidence,
   evaluateRoundTableConsistency,
 } from "./evidence";
+import { getRequestCustomProviders } from "./api-keys";
 import {
   estimateCostUsd,
   getLanguageModel,
@@ -23,6 +24,7 @@ import { pushAudit, saveTask } from "./store";
 import type {
   BrainOpinion,
   BrainRole,
+  CustomAiProvider,
   PlanStep,
   RoundTableResult,
   TaskRecord,
@@ -76,7 +78,7 @@ async function askBrain(
   const brain = BRAINS[role];
   const resolved = resolveBrainModel(role, brain.fallbackOrder);
   if (!resolved) {
-    throw new Error("לא הוגדר אף API key. מלא .env לפי .env.example");
+    throw new Error("לא הוגדר אף API key. הוסף מפתחות או AI מותאם במסך ההגדרות.");
   }
 
   task.brainAssignments[role] = resolved;
@@ -103,6 +105,50 @@ Be specific. Disagreement is welcome.`,
     role,
     provider: resolved.provider,
     model: resolved.model,
+    summary: result.object.summary,
+    recommendation: result.object.recommendation,
+    risks: result.object.risks,
+    openQuestions: result.object.openQuestions,
+    confidence: result.object.confidence,
+    usage,
+    at: new Date().toISOString(),
+  };
+}
+
+async function askCustomGuest(
+  task: TaskRecord,
+  custom: CustomAiProvider,
+  priorContext: string,
+): Promise<BrainOpinion> {
+  const model = getLanguageModel(custom.id, custom.model);
+  const system =
+    custom.systemPrompt?.trim() ||
+    `You are "${custom.name}", an independent custom AI participant in "The Round Table".
+Give a distinct perspective. Be concrete. Disagreement is welcome.
+Respond in Hebrew for prose fields when the user goal is in Hebrew; keep technical terms in English.`;
+
+  const result = await generateObject({
+    model,
+    schema: opinionSchema,
+    system,
+    prompt: `Task title: ${task.title}
+User goal:
+${task.goal}
+
+${priorContext}
+
+You are an extra custom brain at the Round Table named "${custom.name}".
+Return your independent opinion.`,
+  });
+
+  const usage = usageFromResult(custom.id, result.usage || {});
+  recordUsage(task, usage);
+
+  return {
+    role: "custom",
+    guestName: custom.name,
+    provider: custom.id,
+    model: custom.model,
     summary: result.object.summary,
     recommendation: result.object.recommendation,
     risks: result.object.risks,
@@ -189,18 +235,24 @@ export async function runRoundTable(task: TaskRecord): Promise<TaskRecord> {
       ? `Previous round decision:\n${task.roundTables[0].decision}\nPrevious disagreements:\n${task.roundTables[0].disagreements.join("\n")}`
       : "This is the first Round Table for this task.";
 
-  const settled = await Promise.allSettled(
-    BRAIN_LIST.map((b) => askBrain(task, b.role, prior)),
-  );
+  const guests = getRequestCustomProviders().filter((p) => p.joinRoundTable);
+  const settled = await Promise.allSettled([
+    ...BRAIN_LIST.map((b) => askBrain(task, b.role, prior)),
+    ...guests.map((g) => askCustomGuest(task, g, prior)),
+  ]);
 
   const opinions: BrainOpinion[] = [];
   for (const item of settled) {
     if (item.status === "fulfilled") {
       opinions.push(item.value);
+      const label =
+        item.value.role === "custom"
+          ? item.value.guestName || "AI מותאם"
+          : BRAINS[item.value.role].hebrewLabel;
       pushAudit(
         task,
         "brain.opinion",
-        `${BRAINS[item.value.role].hebrewLabel} דיבר (${item.value.provider}/${item.value.model})`,
+        `${label} דיבר (${item.value.provider}/${item.value.model})`,
         { role: item.value.role, confidence: item.value.confidence },
       );
     } else {
